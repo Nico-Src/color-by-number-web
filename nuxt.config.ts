@@ -22,6 +22,10 @@ export default defineNuxtConfig({
     options: {
       theme: {
         preset: Aura,
+        options: {
+          cssLayer: false,
+          darkModeSelector: '[data-theme="dark"]',
+        },
       },
     },
   },
@@ -35,6 +39,12 @@ export default defineNuxtConfig({
 
   app: {
     pageTransition: { name: 'fade', mode: 'out-in' },
+    head: {
+      title: 'Color by Number',
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      ],
+    },
   },
 
   css: ['primeicons/primeicons.css', '@/assets/css/main.css'],

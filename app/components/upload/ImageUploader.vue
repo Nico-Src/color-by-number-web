@@ -77,37 +77,47 @@ function openFilePicker() {
 <style scoped>
 .uploader {
   border: 2px dashed var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 3rem 2rem;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
   background: var(--bg-surface);
 }
 .uploader:hover,
 .uploader.dragging {
   border-color: var(--accent);
   background: var(--accent-muted);
+  box-shadow: var(--shadow-glow);
 }
 .uploader-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.6rem;
   color: var(--text-muted);
 }
+.uploader-content .iconify {
+  color: var(--accent);
+  opacity: 0.7;
+}
+.uploader:hover .uploader-content .iconify,
+.uploader.dragging .uploader-content .iconify {
+  opacity: 1;
+}
 .uploader-title {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
 }
 .uploader-sub {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   margin: 0;
+  color: var(--text-muted);
 }
 .uploader-error {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
 }
 .hidden-input {
   display: none;

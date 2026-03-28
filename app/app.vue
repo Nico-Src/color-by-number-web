@@ -4,24 +4,22 @@
     <nav class="app-nav">
       <div class="app-nav-inner">
         <NuxtLink to="/" class="app-logo">
-          <div class="logo-mark">
-            <Icon name="mdi:palette" size="1.1rem" />
-          </div>
-          <span>Color by Number</span>
+          <Icon name="mdi:palette-swatch-variant" size="1.25rem" class="logo-icon" />
+          <span class="logo-text">Color by Number</span>
         </NuxtLink>
-        <div class="app-nav-links">
+        <div class="app-nav-center">
           <NuxtLink to="/" class="nav-link">
-            <Icon name="mdi:plus-circle-outline" size="1.1rem" />
-            <span>New</span>
+            <Icon name="mdi:plus-circle-outline" size="0.95rem" />
+            New
           </NuxtLink>
           <NuxtLink to="/my-puzzles" class="nav-link">
-            <Icon name="mdi:view-grid-outline" size="1.1rem" />
-            <span>Puzzles</span>
+            <Icon name="mdi:view-grid-outline" size="0.95rem" />
+            Puzzles
           </NuxtLink>
-          <button class="theme-toggle" @click="toggle" :title="isDark ? 'Switch to light' : 'Switch to dark'">
-            <Icon :name="isDark ? 'mdi:weather-sunny' : 'mdi:weather-night'" size="1.1rem" />
-          </button>
         </div>
+        <button class="theme-toggle" @click="toggle" :title="isDark ? 'Switch to light' : 'Switch to dark'">
+          <Icon :name="isDark ? 'mdi:weather-night' : 'mdi:weather-sunny'" size="1rem" />
+        </button>
       </div>
     </nav>
     <main class="page-container">
@@ -39,14 +37,15 @@ onMounted(() => init())
 .app-nav {
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border);
-  padding: 0 1rem;
+  padding: 0 1.5rem;
   position: sticky;
   top: 0;
   z-index: 100;
   height: 52px;
   display: flex;
   align-items: center;
-  transition: background 0.25s, border-color 0.25s;
+  backdrop-filter: blur(12px);
+  transition: background 0.3s, border-color 0.3s;
 }
 .app-nav-inner {
   max-width: 1200px;
@@ -59,60 +58,58 @@ onMounted(() => init())
 .app-logo {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+.logo-icon {
+  color: var(--accent);
+}
+.logo-text {
   font-weight: 700;
   font-size: 0.95rem;
-  color: var(--text-primary);
-  text-decoration: none;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
-.logo-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.app-nav-links {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-.nav-link {
+.app-nav-center {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.4rem 0.7rem;
-  border-radius: 8px;
+}
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 1rem;
+  border-radius: var(--radius-pill);
   font-size: 0.82rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   text-decoration: none;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s, background 0.15s;
 }
 .nav-link:hover {
+  color: var(--text-primary);
   background: var(--accent-muted);
+}
+.nav-link.router-link-active {
   color: var(--accent);
+  background: var(--accent-muted);
 }
 .theme-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-surface-raised);
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  margin-left: 0.3rem;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 .theme-toggle:hover {
-  background: var(--accent-muted);
+  border-color: var(--accent);
   color: var(--accent);
 }
 </style>

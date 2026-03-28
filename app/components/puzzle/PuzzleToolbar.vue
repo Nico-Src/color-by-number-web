@@ -28,84 +28,176 @@ const progressPercent = computed(() => {
 
 <template>
   <div class="toolbar-wrapper">
-    <div class="toolbar-top">
-      <div class="toolbar-group">
-        <Button text rounded size="small" @click="emit('zoomIn')" v-tooltip.bottom="'Zoom in'">
-          <template #icon><Icon name="mdi:magnify-plus-outline" size="1.2rem" /></template>
-        </Button>
-        <Button text rounded size="small" @click="emit('zoomOut')" v-tooltip.bottom="'Zoom out'">
-          <template #icon><Icon name="mdi:magnify-minus-outline" size="1.2rem" /></template>
-        </Button>
-        <Button text rounded size="small" @click="emit('zoomFit')" v-tooltip.bottom="'Fit to screen'">
-          <template #icon><Icon name="mdi:fit-to-screen" size="1.2rem" /></template>
-        </Button>
+    <div class="toolbar-row">
+      <!-- Left: zoom controls in a pill -->
+      <div class="tool-pill">
+        <button class="tool-btn" @click="emit('zoomIn')" title="Zoom in">
+          <Icon name="mdi:magnify-plus-outline" size="1.05rem" />
+        </button>
+        <button class="tool-btn" @click="emit('zoomOut')" title="Zoom out">
+          <Icon name="mdi:magnify-minus-outline" size="1.05rem" />
+        </button>
+        <div class="pill-divider" />
+        <button class="tool-btn" @click="emit('zoomFit')" title="Reset view">
+          <Icon name="mdi:fit-to-screen" size="1.05rem" />
+        </button>
+        <button class="tool-btn" @click="emit('reset')" title="Reset puzzle">
+          <Icon name="mdi:undo-variant" size="1.05rem" />
+        </button>
       </div>
 
-      <div class="toolbar-progress">
-        <ProgressBar :value="progressPercent" :showValue="true" style="height: 1.5rem; min-width: 120px" />
-      </div>
+      <!-- Center: color swatches -->
+      <PuzzleColorPalette :palette="palette" />
 
-      <div class="toolbar-group">
-        <Button
-          text rounded size="small"
-          :severity="store.cheatMode ? 'warn' : 'secondary'"
-          :class="{ 'cheat-active': store.cheatMode }"
-          @click="store.toggleCheatMode()"
-          v-tooltip.bottom="store.cheatMode ? 'Disable cheat brush' : 'Cheat brush'"
-        >
-          <template #icon><Icon name="mdi:auto-fix" size="1.2rem" /></template>
-        </Button>
-        <Button
-          v-if="isComplete"
-          text rounded size="small"
-          :severity="showOriginal ? 'primary' : 'secondary'"
-          @click="emit('update:showOriginal', !showOriginal)"
-          v-tooltip.bottom="showOriginal ? 'Hide original' : 'Show original'"
-        >
-          <template #icon><Icon :name="showOriginal ? 'mdi:eye-off' : 'mdi:eye'" size="1.2rem" /></template>
-        </Button>
-        <Button text rounded size="small" severity="danger" @click="emit('reset')" v-tooltip.bottom="'Reset puzzle'">
-          <template #icon><Icon name="mdi:refresh" size="1.2rem" /></template>
-        </Button>
+      <!-- Right: mastery badge + actions -->
+      <div class="toolbar-right">
+        <div class="mastery-badge">
+          <span class="mastery-label">MASTERY</span>
+          <span class="mastery-value">{{ progressPercent }}%</span>
+          <div class="mastery-bar">
+            <div class="mastery-fill" :style="{ width: progressPercent + '%' }" />
+          </div>
+        </div>
+
+        <div class="tool-pill">
+          <button
+            class="tool-btn"
+            :class="{ 'tool-btn--active-warn': store.cheatMode }"
+            @click="store.toggleCheatMode()"
+            :title="store.cheatMode ? 'Disable cheat brush' : 'Cheat brush'"
+          >
+            <Icon name="mdi:auto-fix" size="1.05rem" />
+          </button>
+          <button
+            v-if="isComplete"
+            class="tool-btn"
+            :class="{ 'tool-btn--active': showOriginal }"
+            @click="emit('update:showOriginal', !showOriginal)"
+            :title="showOriginal ? 'Hide original' : 'Show original'"
+          >
+            <Icon :name="showOriginal ? 'mdi:eye-off' : 'mdi:eye'" size="1.05rem" />
+          </button>
+        </div>
       </div>
     </div>
-
-    <PuzzleColorPalette :palette="palette" />
   </div>
 </template>
 
 <style scoped>
 .toolbar-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.6rem;
   background: var(--bg-surface);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
 }
-.toolbar-top {
+.toolbar-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.5rem;
 }
-.toolbar-group {
+.toolbar-right {
   display: flex;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  flex-shrink: 0;
 }
-.toolbar-group :deep(.p-button) {
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
+
+/* ── Pill group ──────────────── */
+.tool-pill {
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.pill-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 2px;
+}
+
+/* ── Tool button ─────────────── */
+.tool-btn {
+  display: flex;
+  align-items: center;
   justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
-.toolbar-progress {
-  flex: 1;
-  max-width: 200px;
+.tool-btn:hover {
+  background: var(--accent-muted);
+  color: var(--accent);
 }
-.cheat-active {
-  background: rgba(234, 179, 8, 0.15) !important;
-  color: #eab308 !important;
+.tool-btn--active {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+.tool-btn--active-warn {
+  background: var(--warn-muted);
+  color: var(--warn);
+}
+
+/* ── Mastery badge ───────────── */
+.mastery-badge {
+  background: var(--bg-surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.3rem 0.65rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  min-width: 110px;
+}
+.mastery-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.mastery-value {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+.mastery-bar {
+  width: 100%;
+  height: 3px;
+  background: var(--bg-inset);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.mastery-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+@media (max-width: 700px) {
+  .toolbar-row {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .toolbar-right {
+    margin-left: 0;
+  }
+  .mastery-badge {
+    min-width: 90px;
+  }
 }
 </style>

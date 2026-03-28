@@ -87,25 +87,42 @@ export const usePuzzleStore = defineStore('puzzle', {
     },
 
     /**
-     * Fill all unfilled regions whose label falls within the given radius
+     * Fill all unfilled regions that have ANY pixel within the given radius
      * (in puzzle-pixel coordinates). Bypasses color matching — this is the cheat tool.
      * Returns the list of region indices that were filled.
      */
     cheatFillRegions(px: number, py: number, radius: number): number[] {
       if (!this.currentPuzzle) return []
+      const { regions, regionGrid, width, height, progress } = this.currentPuzzle
       const filled: number[] = []
       const r2 = radius * radius
-      const newProgress = new Uint8Array(this.currentPuzzle.progress)
+      const newProgress = new Uint8Array(progress)
 
-      for (let i = 0; i < this.currentPuzzle.regions.length; i++) {
-        if (newProgress[i] === 1) continue
-        const region = this.currentPuzzle.regions[i]
-        if (!region) continue
-        const dx = region.labelPos.x - px
-        const dy = region.labelPos.y - py
-        if (dx * dx + dy * dy <= r2) {
-          newProgress[i] = 1
-          filled.push(i)
+      // Collect unfilled region indices for quick lookup
+      const unfilledSet = new Set<number>()
+      for (let i = 0; i < regions.length; i++) {
+        if (newProgress[i] !== 1) unfilledSet.add(i)
+      }
+      if (unfilledSet.size === 0) return []
+
+      // Scan all pixels within the bounding square of the brush circle
+      const xMin = Math.max(0, Math.floor(px - radius))
+      const xMax = Math.min(width - 1, Math.ceil(px + radius))
+      const yMin = Math.max(0, Math.floor(py - radius))
+      const yMax = Math.min(height - 1, Math.ceil(py + radius))
+
+      const hitRegions = new Set<number>()
+      for (let y = yMin; y <= yMax; y++) {
+        for (let x = xMin; x <= xMax; x++) {
+          const dx = x - px
+          const dy = y - py
+          if (dx * dx + dy * dy > r2) continue
+          const rIdx = regionGrid[y * width + x]
+          if (rIdx !== undefined && unfilledSet.has(rIdx) && !hitRegions.has(rIdx)) {
+            hitRegions.add(rIdx)
+            newProgress[rIdx] = 1
+            filled.push(rIdx)
+          }
         }
       }
 

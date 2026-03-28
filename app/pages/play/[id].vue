@@ -115,18 +115,24 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 1rem;
-  padding: 3rem;
+  padding: 4rem 2rem;
   color: var(--text-muted);
 }
 .play-layout {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0;
   height: calc(100vh - 56px);
-  padding: 0.25rem;
+  padding: 0;
 }
 .reveal-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+}
+.reveal-actions :deep(.p-button) {
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 </style>

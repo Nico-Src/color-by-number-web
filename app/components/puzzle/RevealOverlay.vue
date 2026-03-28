@@ -38,41 +38,46 @@ onUnmounted(() => {
 .reveal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--bg-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
 }
 .reveal-content {
   background: var(--bg-surface);
-  border-radius: var(--radius-lg);
-  padding: 2rem;
+  border-radius: var(--radius-xl);
+  padding: 2rem 2.5rem;
   max-width: 90vw;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
-  box-shadow: var(--shadow-lg);
-  border: 1px solid var(--border);
+  gap: 1.25rem;
+  box-shadow: var(--shadow-glow-strong), var(--shadow-lg);
+  border: 1px solid var(--border-accent);
 }
 .reveal-celebration {
   text-align: center;
   position: relative;
+  padding-top: 0.5rem;
 }
 .reveal-celebration h2 {
   margin: 0;
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: -0.01em;
+  font-size: 1.4rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
 }
 .star {
-  color: #f59e0b;
+  color: var(--warn);
   position: absolute;
   animation: sparkle 1.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.4));
 }
 .s1 { top: -20px; left: -40px; animation-delay: 0s; }
 .s2 { top: -25px; right: -35px; animation-delay: 0.3s; }
@@ -86,8 +91,9 @@ onUnmounted(() => {
 .reveal-image {
   max-width: 100%;
   max-height: 60vh;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   object-fit: contain;
+  box-shadow: var(--shadow-md);
 }
 
 .reveal-enter-active {

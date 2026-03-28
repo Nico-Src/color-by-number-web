@@ -20,7 +20,7 @@ function reset() {
 
     <div class="config-field">
       <label>Colors: {{ config.numColors }}</label>
-      <Slider v-model="config.numColors" :min="4" :max="30" :step="1" />
+      <Slider v-model="config.numColors" :min="4" :max="64" :step="1" />
     </div>
 
     <div class="config-field">
@@ -48,7 +48,7 @@ function reset() {
 <style scoped>
 .config-panel {
   background: var(--bg-surface);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   padding: 1.25rem;
   border: 1px solid var(--border);
 }
@@ -57,21 +57,49 @@ function reset() {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
 }
 .config-header h3 {
   margin: 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 .config-field {
   margin-bottom: 1rem;
 }
+.config-field:last-of-type {
+  margin-bottom: 0;
+}
 .config-field label {
-  display: block;
-  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem;
   font-weight: 500;
   color: var(--text-secondary);
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+.config-field :deep(.p-slider) {
+  height: 4px;
+  background: var(--bg-inset);
+  border-radius: 2px;
+}
+.config-field :deep(.p-slider-handle) {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--accent);
+  background: var(--bg-surface);
+  box-shadow: 0 0 6px var(--accent-glow);
+  top: 4px;
+}
+.config-field :deep(.p-slider-handle::before) {
+  display: none;
+}
+.config-field :deep(.p-slider-range) {
+  background: var(--accent);
 }
 </style>

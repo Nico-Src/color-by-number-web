@@ -2,7 +2,7 @@ const STORAGE_KEY = 'cbn-theme'
 
 type Theme = 'light' | 'dark'
 
-const theme = ref<Theme>('light')
+const theme = ref<Theme>('dark')
 
 function applyTheme(t: Theme) {
   if (import.meta.client) {

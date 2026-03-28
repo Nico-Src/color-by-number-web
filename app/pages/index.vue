@@ -68,7 +68,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="home-page content-width">
+  <div class="home-page">
     <div class="hero">
       <h1>Create a Puzzle</h1>
       <p>Upload any image and turn it into a color-by-number puzzle</p>
@@ -96,7 +96,7 @@ onUnmounted(() => {
         <ConfigConversionConfig v-model="config" />
 
         <button
-          class="btn-primary convert-btn"
+          class="btn-accent-solid"
           :disabled="!selectedFile || store.isProcessing"
           @click="startConversion"
         >
@@ -117,30 +117,26 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.content-width {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 1rem;
-}
 .home-page {
-  padding-top: 2rem;
-  padding-bottom: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
 }
 .hero {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 .hero h1 {
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-size: 1.8rem;
+  font-weight: 800;
   margin: 0 0 0.35rem;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   color: var(--text-primary);
 }
 .hero p {
   color: var(--text-muted);
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 .home-grid {
   display: grid;
@@ -166,7 +162,7 @@ onUnmounted(() => {
 .preview-card {
   background: var(--bg-surface);
   border-radius: var(--radius-lg);
-  padding: 0.75rem;
+  padding: 0.85rem;
   border: 1px solid var(--border);
   text-align: center;
 }
@@ -182,53 +178,53 @@ onUnmounted(() => {
 }
 .name-field label {
   display: block;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
   margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
-.btn-primary {
+.btn-accent-solid {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.6rem 1.2rem;
-  border-radius: 8px;
+  width: 100%;
+  padding: 0.65rem 1.2rem;
+  border-radius: var(--radius-pill);
   border: none;
   background: var(--accent);
-  color: white;
-  font-weight: 600;
+  color: var(--bg-root);
+  font-weight: 700;
   font-size: 0.85rem;
   cursor: pointer;
-  transition: background 0.15s, transform 0.1s, opacity 0.15s;
+  transition: box-shadow 0.2s, transform 0.1s, opacity 0.15s;
   font-family: var(--font-ui);
 }
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-light);
+.btn-accent-solid:hover:not(:disabled) {
+  box-shadow: var(--shadow-glow-strong);
 }
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.97);
+.btn-accent-solid:active:not(:disabled) {
+  transform: scale(0.98);
 }
-.btn-primary:disabled {
-  opacity: 0.5;
+.btn-accent-solid:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
-}
-.convert-btn {
-  width: 100%;
 }
 .processing-status {
   background: var(--bg-surface);
-  border-radius: var(--radius);
-  padding: 0.8rem 1rem;
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1rem;
   border: 1px solid var(--border);
 }
 .processing-status p {
   margin: 0 0 0.5rem;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--text-secondary);
 }
 .processing-track {
-  height: 4px;
+  height: 3px;
   background: var(--bg-inset);
   border-radius: 2px;
   overflow: hidden;
@@ -238,5 +234,6 @@ onUnmounted(() => {
   background: var(--accent);
   border-radius: 2px;
   transition: width 0.3s ease;
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 </style>

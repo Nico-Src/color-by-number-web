@@ -24,6 +24,12 @@ const dateStr = computed(() => {
   })
 })
 
+const statusLabel = computed(() => {
+  if (props.puzzle.completed) return 'Finished'
+  if (progressPercent.value > 0) return 'In Progress'
+  return 'New'
+})
+
 const showDeleteConfirm = ref(false)
 
 function confirmDelete() {
@@ -45,24 +51,38 @@ function doDelete() {
         :alt="puzzle.name"
         loading="lazy"
       />
-      <div v-if="puzzle.completed" class="completed-badge">
-        <Icon name="mdi:check" size="0.85rem" />
-      </div>
-      <button class="delete-btn" @click.stop="confirmDelete" title="Delete puzzle">
-        <Icon name="mdi:trash-can-outline" size="0.9rem" />
+      <!-- Status badge -->
+      <span v-if="!puzzle.completed && progressPercent > 0" class="status-badge status-progress">
+        IN PROGRESS
+      </span>
+      <span v-if="puzzle.completed" class="status-badge status-done">
+        FINISHED
+      </span>
+      <!-- Delete btn on hover -->
+      <button class="delete-btn" @click.stop="confirmDelete" title="Delete">
+        <Icon name="mdi:dots-vertical" size="0.9rem" />
       </button>
     </div>
+
     <div class="card-body">
-      <div class="card-meta">
-        <p class="card-name">{{ puzzle.name }}</p>
-        <span class="card-date">{{ dateStr }}</span>
+      <p class="card-name">{{ puzzle.name }}</p>
+      <span class="card-date">Modified: {{ dateStr }}</span>
+
+      <div class="card-progress-row">
+        <span class="progress-label-text">Progress</span>
+        <span class="progress-value">{{ progressPercent }}%</span>
       </div>
-      <div class="card-progress">
-        <div class="progress-track">
-          <div class="progress-fill" :style="{ width: progressPercent + '%' }" />
-        </div>
-        <span class="progress-label">{{ progressPercent }}%</span>
+      <div class="progress-track">
+        <div
+          class="progress-fill"
+          :class="{ 'progress-complete': puzzle.completed }"
+          :style="{ width: progressPercent + '%' }"
+        />
       </div>
+
+      <button class="card-action" @click.stop="emit('click')">
+        {{ puzzle.completed ? 'View' : progressPercent > 0 ? 'Resume' : 'Open Puzzle' }}
+      </button>
     </div>
 
     <Dialog
@@ -89,13 +109,13 @@ function doDelete() {
   border: 1px solid var(--border);
   overflow: hidden;
   cursor: pointer;
-  transition: box-shadow 0.2s, transform 0.15s, border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.25s, transform 0.15s;
   position: relative;
 }
 .puzzle-card:hover {
-  box-shadow: var(--shadow-md);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-glow);
   transform: translateY(-2px);
-  border-color: var(--accent);
 }
 .card-thumb {
   position: relative;
@@ -107,34 +127,43 @@ function doDelete() {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition: transform 0.35s ease;
 }
 .puzzle-card:hover .card-thumb img {
-  transform: scale(1.03);
+  transform: scale(1.04);
 }
-.completed-badge {
+
+/* ── Status badge ──── */
+.status-badge {
   position: absolute;
   top: 8px;
   left: 8px;
-  background: var(--accent);
-  color: white;
-  border-radius: 6px;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
+.status-progress {
+  background: var(--accent);
+  color: var(--bg-root);
+}
+.status-done {
+  background: var(--accent);
+  color: var(--bg-root);
+}
+
+/* ── Delete btn ────── */
 .delete-btn {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
   border: none;
-  background: rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.45);
   color: white;
   cursor: pointer;
   display: flex;
@@ -148,57 +177,85 @@ function doDelete() {
   opacity: 1;
 }
 .delete-btn:hover {
-  background: #ef4444;
+  background: var(--danger);
 }
+
+/* ── Body ────────── */
 .card-body {
-  padding: 0.65rem 0.75rem 0.7rem;
-}
-.card-meta {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.45rem;
+  padding: 0.7rem 0.85rem 0.85rem;
 }
 .card-name {
   margin: 0;
-  font-weight: 600;
-  font-size: 0.82rem;
+  font-weight: 700;
+  font-size: 0.88rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-primary);
 }
 .card-date {
-  font-size: 0.7rem;
+  display: block;
+  font-size: 0.68rem;
   color: var(--text-muted);
-  white-space: nowrap;
-  flex-shrink: 0;
+  margin-top: 0.15rem;
 }
-.card-progress {
+
+/* ── Progress ────── */
+.card-progress-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
+  margin-top: 0.65rem;
+}
+.progress-label-text {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.progress-value {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-mono);
 }
 .progress-track {
-  flex: 1;
-  height: 4px;
+  width: 100%;
+  height: 3px;
   background: var(--bg-inset);
   border-radius: 2px;
   overflow: hidden;
+  margin-top: 0.3rem;
 }
 .progress-fill {
   height: 100%;
   background: var(--accent);
   border-radius: 2px;
-  transition: width 0.3s ease;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 6px var(--accent-glow);
 }
-.progress-label {
-  font-size: 0.65rem;
+.progress-fill.progress-complete {
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.3);
+}
+
+/* ── Card action ─── */
+.card-action {
+  display: block;
+  width: 100%;
+  margin-top: 0.7rem;
+  padding: 0.45rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.77rem;
   font-weight: 600;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  min-width: 2.2em;
-  text-align: right;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: var(--font-ui);
+}
+.card-action:hover {
+  background: var(--accent-muted);
+  border-color: var(--accent);
 }
 </style>
