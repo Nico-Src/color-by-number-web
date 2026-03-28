@@ -1,0 +1,37 @@
+import Aura from '@primevue/themes/aura'
+
+// https://nuxt.com/docs/api/configuration/nuxt-config
+export default defineNuxtConfig({
+  compatibilityDate: '2025-07-15',
+  devtools: { enabled: true },
+
+  ssr: false,
+
+  modules: [
+    '@primevue/nuxt-module',
+    '@nuxt/icon',
+    '@nuxt/fonts',
+    '@pinia/nuxt',
+  ],
+
+  primevue: {
+    options: {
+      theme: {
+        preset: Aura,
+      },
+    },
+  },
+
+  fonts: {
+    families: [
+      { name: 'Inter', provider: 'google' },
+      { name: 'Fira Mono', provider: 'google' },
+    ],
+  },
+
+  app: {
+    pageTransition: { name: 'fade', mode: 'out-in' },
+  },
+
+  css: ['primeicons/primeicons.css', '@/assets/css/main.css'],
+})

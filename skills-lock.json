@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "webassembly-component-development": {
+      "source": "cosmonic-labs/skills",
+      "sourceType": "github",
+      "computedHash": "4f15afca2804ad3c7d463ab0c0f8cb9bad2bec2047e077cf2a45b070c76aa00a"
+    }
+  }
+}

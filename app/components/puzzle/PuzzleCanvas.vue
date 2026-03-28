@@ -1,0 +1,633 @@
+<script setup lang="ts">
+import type { PuzzleData } from '../../lib/types'
+import { usePuzzleStore } from '../../composables/usePuzzleStore'
+import { useDB } from '../../composables/useDB'
+
+const props = defineProps<{
+  puzzle: PuzzleData
+  showOriginal?: boolean
+}>()
+
+const emit = defineEmits<{
+  completed: []
+  regionFilled: [regionIndex: number]
+  wrongColor: [regionIndex: number]
+}>()
+
+const store = usePuzzleStore()
+const db = useDB()
+const canvasRef = ref<HTMLCanvasElement | null>(null)
+const containerRef = ref<HTMLDivElement | null>(null)
+
+// Transform state
+const zoom = ref(1)
+const panX = ref(0)
+const panY = ref(0)
+const isPanning = ref(false)
+const lastMouse = ref({ x: 0, y: 0 })
+
+// Flash animation state
+const flashRegion = ref<number | null>(null)
+const flashTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+
+// Fill animation state — supports multiple concurrent animations
+interface FillAnimState {
+  progress: number
+  bitmap: ImageBitmap
+  frame: number
+  start: number
+  duration: number
+  done: boolean
+}
+const activeAnims = reactive(new Map<number, FillAnimState>())
+
+// Cached rendering layers — rebuilt only when puzzle state changes
+let cachedFillBitmap: ImageBitmap | null = null
+let cachedBoundaryPath: Path2D | null = null
+let fillCacheKey = ''
+let boundaryCacheKey = ''
+
+// Pre-computed lookup tables (built once per puzzle)
+let colorIndices: Uint8Array | null = null
+let paletteFlat: Uint8Array | null = null
+
+// Original image bitmap for overlay
+let originalBitmap: ImageBitmap | null = null
+
+async function ensureOriginalBitmap() {
+  if (originalBitmap || !props.puzzle.originalImageBlob) return
+  originalBitmap = await createImageBitmap(props.puzzle.originalImageBlob)
+}
+
+function ensureLookupTables() {
+  if (colorIndices && paletteFlat) return
+  const { regions, palette } = props.puzzle
+  colorIndices = new Uint8Array(regions.length)
+  for (let i = 0; i < regions.length; i++) {
+    colorIndices[i] = regions[i]!.colorIndex
+  }
+  paletteFlat = new Uint8Array(palette.length * 3)
+  for (let i = 0; i < palette.length; i++) {
+    const c = palette[i]!
+    paletteFlat[i * 3] = c.r
+    paletteFlat[i * 3 + 1] = c.g
+    paletteFlat[i * 3 + 2] = c.b
+  }
+}
+
+// Inline Web Worker for fill bitmap construction
+const workerCode = `
+self.onmessage = async (e) => {
+  const { regionGrid, progress, paletteFlat, colorIndices, width, height, selectedColorIndex, flashRegion, fillingRegions } = e.data;
+  const fillingSet = new Set(fillingRegions);
+  const imgData = new ImageData(width, height);
+  const d = imgData.data;
+  const len = regionGrid.length;
+  for (let i = 0; i < len; i++) {
+    const rIdx = regionGrid[i];
+    const off = i * 4;
+    if (rIdx === flashRegion) {
+      d[off] = 239; d[off+1] = 68; d[off+2] = 68; d[off+3] = 100;
+    } else if (fillingSet.has(rIdx)) {
+      d[off] = 255; d[off+1] = 255; d[off+2] = 255; d[off+3] = 255;
+    } else if (progress[rIdx] === 1) {
+      const ci = colorIndices[rIdx] * 3;
+      d[off] = paletteFlat[ci]; d[off+1] = paletteFlat[ci+1]; d[off+2] = paletteFlat[ci+2]; d[off+3] = 255;
+    } else if (selectedColorIndex >= 0 && colorIndices[rIdx] === selectedColorIndex) {
+      d[off] = 230; d[off+1] = 230; d[off+2] = 240; d[off+3] = 255;
+    } else {
+      d[off] = 255; d[off+1] = 255; d[off+2] = 255; d[off+3] = 255;
+    }
+  }
+  const bitmap = await createImageBitmap(imgData);
+  self.postMessage({ bitmap }, [bitmap]);
+};
+`
+let fillWorker: Worker | null = null
+let pendingFillRequest = 0
+
+function getFillWorker(): Worker {
+  if (!fillWorker) {
+    const blob = new Blob([workerCode], { type: 'application/javascript' })
+    fillWorker = new Worker(URL.createObjectURL(blob))
+    fillWorker.onmessage = (e: MessageEvent) => {
+      const { bitmap } = e.data as { bitmap: ImageBitmap }
+      cachedFillBitmap = bitmap
+      pendingFillRequest--
+      // Purge completed animations now that the fill bitmap includes their regions
+      for (const [id, anim] of activeAnims) {
+        if (anim.done) activeAnims.delete(id)
+      }
+      draw()
+    }
+  }
+  return fillWorker
+}
+
+function getActiveFillingRegions(): number[] {
+  const ids: number[] = []
+  for (const [id, anim] of activeAnims) {
+    if (!anim.done) ids.push(id)
+  }
+  return ids
+}
+
+function getFillCacheKey(): string {
+  const animKeys = getActiveFillingRegions().sort().join(',')
+  return Array.from(props.puzzle.progress).join('') + '|' + (flashRegion.value ?? '') + '|' + animKeys + '|' + (store.selectedColorIndex ?? '')
+}
+
+function getBoundaryCacheKey(): string {
+  return Array.from(props.puzzle.progress).join('')
+}
+
+function invalidateCache() {
+  cachedFillBitmap = null
+  cachedBoundaryPath = null
+  fillCacheKey = ''
+  boundaryCacheKey = ''
+}
+
+function requestFillBitmap() {
+  const key = getFillCacheKey()
+  if (fillCacheKey === key && cachedFillBitmap) return
+  fillCacheKey = key
+
+  ensureLookupTables()
+  const { width, height, regionGrid, progress } = props.puzzle
+  const worker = getFillWorker()
+  pendingFillRequest++
+  worker.postMessage({
+    regionGrid,
+    progress,
+    paletteFlat,
+    colorIndices,
+    width,
+    height,
+    selectedColorIndex: store.selectedColorIndex ?? -1,
+    flashRegion: flashRegion.value ?? -1,
+    fillingRegions: getActiveFillingRegions(),
+  })
+}
+
+function ensureBoundary() {
+  const key = getBoundaryCacheKey()
+  if (boundaryCacheKey === key && cachedBoundaryPath) return
+  boundaryCacheKey = key
+
+  const { progress, width, height, regionGrid } = props.puzzle
+
+  const boundary = new Path2D()
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x
+      const rA = regionGrid[idx]!
+
+      if (x < width - 1) {
+        const rB = regionGrid[idx + 1]!
+        if (rA !== rB && (progress[rA] !== 1 || progress[rB] !== 1)) {
+          boundary.moveTo(x + 1, y)
+          boundary.lineTo(x + 1, y + 1)
+        }
+      }
+
+      if (y < height - 1) {
+        const rB = regionGrid[idx + width]!
+        if (rA !== rB && (progress[rA] !== 1 || progress[rB] !== 1)) {
+          boundary.moveTo(x, y + 1)
+          boundary.lineTo(x + 1, y + 1)
+        }
+      }
+    }
+  }
+
+  for (let x = 0; x < width; x++) {
+    if (progress[regionGrid[x]!] !== 1) {
+      boundary.moveTo(x, 0); boundary.lineTo(x + 1, 0)
+    }
+    if (progress[regionGrid[(height - 1) * width + x]!] !== 1) {
+      boundary.moveTo(x, height); boundary.lineTo(x + 1, height)
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    if (progress[regionGrid[y * width]!] !== 1) {
+      boundary.moveTo(0, y); boundary.lineTo(0, y + 1)
+    }
+    if (progress[regionGrid[y * width + width - 1]!] !== 1) {
+      boundary.moveTo(width, y); boundary.lineTo(width, y + 1)
+    }
+  }
+
+  cachedBoundaryPath = boundary
+}
+
+function draw() {
+  const canvas = canvasRef.value
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const dpr = window.devicePixelRatio || 1
+  const rect = canvas.getBoundingClientRect()
+  const cw = Math.round(rect.width * dpr)
+  const ch = Math.round(rect.height * dpr)
+  if (canvas.width !== cw || canvas.height !== ch) {
+    canvas.width = cw
+    canvas.height = ch
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+  ctx.clearRect(0, 0, rect.width, rect.height)
+  ctx.save()
+  ctx.translate(panX.value, panY.value)
+  ctx.scale(zoom.value, zoom.value)
+
+  // Draw cached fill bitmap
+  if (cachedFillBitmap) {
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(cachedFillBitmap, 0, 0)
+  }
+
+  // Draw fill animation overlays for all regions being filled
+  for (const [regionIdx, anim] of activeAnims) {
+    const region = props.puzzle.regions[regionIdx]
+    if (!region) continue
+    const t = anim.progress
+    const { bbox } = region
+
+    const cx = bbox.x + bbox.w / 2
+    const cy = bbox.y + bbox.h / 2
+    const maxRadius = Math.sqrt((bbox.w / 2) ** 2 + (bbox.h / 2) ** 2) + 2
+    const currentRadius = maxRadius * t
+
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(cx, cy, Math.max(0.5, currentRadius), 0, Math.PI * 2)
+    ctx.clip()
+    ctx.globalAlpha = 0.3 + 0.7 * t
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(anim.bitmap, 0, 0)
+    ctx.restore()
+  }
+
+  // Draw cached boundary path
+  if (cachedBoundaryPath) {
+    ctx.strokeStyle = '#94a3b8'
+    ctx.lineWidth = 1 / zoom.value
+    ctx.stroke(cachedBoundaryPath)
+  }
+
+  // Labels — lightweight, no caching needed
+  const { regions, progress } = props.puzzle
+  if (!props.showOriginal) {
+    for (let i = 0; i < regions.length; i++) {
+      if (progress[i] === 1) continue
+      const region = regions[i]!
+      const fontSize = Math.max(8, Math.min(16, Math.sqrt(region.pixelCount) / 3))
+      ctx.font = `bold ${fontSize}px 'Fira Mono', monospace`
+      ctx.fillStyle = '#334155'
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 2.5
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      const label = String(region.colorIndex + 1)
+      ctx.strokeText(label, region.labelPos.x, region.labelPos.y)
+      ctx.fillText(label, region.labelPos.x, region.labelPos.y)
+    }
+  }
+
+  // Original image overlay
+  if (props.showOriginal && originalBitmap) {
+    ctx.globalAlpha = 0.55
+    ctx.imageSmoothingEnabled = true
+    ctx.drawImage(originalBitmap, 0, 0, props.puzzle.width, props.puzzle.height)
+    ctx.globalAlpha = 1
+  }
+
+  ctx.restore()
+}
+
+// Rebuild cache then draw
+function rebuildAndDraw() {
+  ensureBoundary()
+  requestFillBitmap()
+  draw() // draw immediately with stale fill bitmap; worker will trigger redraw
+}
+
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3
+}
+
+async function animateFill(regionIdx: number) {
+  // If this region is already animating, cancel its previous animation
+  const existing = activeAnims.get(regionIdx)
+  if (existing) {
+    cancelAnimationFrame(existing.frame)
+    activeAnims.delete(regionIdx)
+  }
+
+  // Build a pixel-perfect mask bitmap for this region
+  const { width, height, regionGrid, regions, palette } = props.puzzle
+  const region = regions[regionIdx]!
+  const c = palette[region.colorIndex]!
+  const maskData = new ImageData(width, height)
+  const md = maskData.data
+  for (let i = 0; i < regionGrid.length; i++) {
+    if (regionGrid[i] === regionIdx) {
+      const off = i * 4
+      md[off] = c.r; md[off + 1] = c.g; md[off + 2] = c.b; md[off + 3] = 255
+    }
+  }
+  const bitmap = await createImageBitmap(maskData)
+
+  // Duration scales with region size: ~500ms for small, up to ~900ms for large
+  const diagonal = Math.sqrt(region.bbox.w ** 2 + region.bbox.h ** 2)
+  const duration = Math.max(500, Math.min(900, 400 + diagonal * 2))
+  const start = performance.now()
+
+  const anim: FillAnimState = { progress: 0, bitmap, frame: 0, start, duration, done: false }
+  activeAnims.set(regionIdx, anim)
+
+  // Rebuild caches with the region shown as white
+  ensureBoundary()
+  requestFillBitmap()
+
+  function frame(now: number) {
+    const elapsed = now - start
+    anim.progress = Math.min(1, elapsed / duration)
+    draw()
+
+    if (anim.progress < 1) {
+      anim.frame = requestAnimationFrame(frame)
+    } else {
+      // Animation done — keep overlay alive until worker delivers new bitmap
+      anim.done = true
+      rebuildAndDraw()
+    }
+  }
+  anim.frame = requestAnimationFrame(frame)
+}
+
+// Hit test: find which region was clicked
+function hitTest(canvasX: number, canvasY: number): number | null {
+  const { width, regionGrid } = props.puzzle
+
+  // Convert canvas coords to puzzle pixel coords
+  const px = Math.floor((canvasX - panX.value) / zoom.value)
+  const py = Math.floor((canvasY - panY.value) / zoom.value)
+
+  if (px < 0 || py < 0 || px >= props.puzzle.width || py >= props.puzzle.height) {
+    return null
+  }
+
+  return regionGrid[py * width + px] ?? null
+}
+
+function onClick(e: MouseEvent) {
+  if (isPanning.value) return
+  const canvas = canvasRef.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+
+  const regionIdx = hitTest(x, y)
+  if (regionIdx === null || regionIdx === undefined) return
+  if (props.puzzle.progress[regionIdx] === 1) return // already filled
+
+  const success = store.fillRegion(regionIdx)
+  if (success) {
+    emit('regionFilled', regionIdx)
+    db.updateProgress(
+      props.puzzle.id,
+      props.puzzle.progress,
+      store.isComplete,
+    )
+    animateFill(regionIdx)
+    if (store.isComplete) {
+      emit('completed')
+    }
+  }
+}
+
+// Pan handlers
+function onMouseDown(e: MouseEvent) {
+  if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+    isPanning.value = true
+    lastMouse.value = { x: e.clientX, y: e.clientY }
+    e.preventDefault()
+  }
+}
+
+function onMouseMove(e: MouseEvent) {
+  if (isPanning.value) {
+    panX.value += e.clientX - lastMouse.value.x
+    panY.value += e.clientY - lastMouse.value.y
+    lastMouse.value = { x: e.clientX, y: e.clientY }
+    requestAnimationFrame(() => draw())
+  }
+}
+
+function onMouseUp() {
+  isPanning.value = false
+}
+
+// Zoom via scroll wheel
+function onWheel(e: WheelEvent) {
+  e.preventDefault()
+  const canvas = canvasRef.value
+  if (!canvas) return
+
+  const rect = canvas.getBoundingClientRect()
+  const mouseX = e.clientX - rect.left
+  const mouseY = e.clientY - rect.top
+
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
+  const newZoom = Math.max(0.1, Math.min(20, zoom.value * factor))
+
+  // Zoom towards mouse position
+  panX.value = mouseX - (mouseX - panX.value) * (newZoom / zoom.value)
+  panY.value = mouseY - (mouseY - panY.value) * (newZoom / zoom.value)
+  zoom.value = newZoom
+  draw()
+}
+
+// Touch support
+let lastTouchDist = 0
+let lastTouchCenter = { x: 0, y: 0 }
+
+function onTouchStart(e: TouchEvent) {
+  if (e.touches.length === 1) {
+    const t0 = e.touches[0]!
+    lastMouse.value = { x: t0.clientX, y: t0.clientY }
+  } else if (e.touches.length === 2) {
+    const t0 = e.touches[0]!
+    const t1 = e.touches[1]!
+    const dx = t1.clientX - t0.clientX
+    const dy = t1.clientY - t0.clientY
+    lastTouchDist = Math.sqrt(dx * dx + dy * dy)
+    lastTouchCenter = {
+      x: (t0.clientX + t1.clientX) / 2,
+      y: (t0.clientY + t1.clientY) / 2,
+    }
+  }
+}
+
+function onTouchMove(e: TouchEvent) {
+  e.preventDefault()
+  if (e.touches.length === 1) {
+    const t0 = e.touches[0]!
+    const dx = t0.clientX - lastMouse.value.x
+    const dy = t0.clientY - lastMouse.value.y
+    panX.value += dx
+    panY.value += dy
+    lastMouse.value = { x: t0.clientX, y: t0.clientY }
+    draw()
+  } else if (e.touches.length === 2) {
+    const t0 = e.touches[0]!
+    const t1 = e.touches[1]!
+    const dx = t1.clientX - t0.clientX
+    const dy = t1.clientY - t0.clientY
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    const factor = dist / lastTouchDist
+    const center = {
+      x: (t0.clientX + t1.clientX) / 2,
+      y: (t0.clientY + t1.clientY) / 2,
+    }
+
+    const canvas = canvasRef.value
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect()
+      const cx = center.x - rect.left
+      const cy = center.y - rect.top
+      const newZoom = Math.max(0.1, Math.min(20, zoom.value * factor))
+      panX.value = cx - (cx - panX.value) * (newZoom / zoom.value)
+      panY.value = cy - (cy - panY.value) * (newZoom / zoom.value)
+      zoom.value = newZoom
+    }
+
+    lastTouchDist = dist
+    lastTouchCenter = center
+    draw()
+  }
+}
+
+function onTouchEnd(e: TouchEvent) {
+  // Detect tap for region fill
+  if (e.changedTouches.length === 1 && !isPanning.value) {
+    const canvas = canvasRef.value
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const t = e.changedTouches[0]!
+    const x = t.clientX - rect.left
+    const y = t.clientY - rect.top
+
+    const regionIdx = hitTest(x, y)
+    if (regionIdx !== null && regionIdx !== undefined && props.puzzle.progress[regionIdx] !== 1) {
+      const success = store.fillRegion(regionIdx)
+      if (success) {
+        emit('regionFilled', regionIdx)
+        db.updateProgress(props.puzzle.id, props.puzzle.progress, store.isComplete)
+        animateFill(regionIdx)
+        if (store.isComplete) emit('completed')
+      }
+    }
+  }
+}
+
+// Exposed methods for toolbar
+function zoomIn() {
+  zoom.value = Math.min(20, zoom.value * 1.3)
+  draw()
+}
+
+function zoomOut() {
+  zoom.value = Math.max(0.1, zoom.value / 1.3)
+  draw()
+}
+
+function zoomFit() {
+  const container = containerRef.value
+  if (!container) return
+  const rect = container.getBoundingClientRect()
+  const scaleX = rect.width / props.puzzle.width
+  const scaleY = rect.height / props.puzzle.height
+  zoom.value = Math.min(scaleX, scaleY) * 0.9
+  panX.value = (rect.width - props.puzzle.width * zoom.value) / 2
+  panY.value = (rect.height - props.puzzle.height * zoom.value) / 2
+  draw()
+}
+
+defineExpose({ zoomIn, zoomOut, zoomFit, draw: rebuildAndDraw })
+
+const resizeHandler = () => draw()
+
+watch(() => props.showOriginal, async (val) => {
+  if (val) await ensureOriginalBitmap()
+  draw()
+})
+
+onMounted(() => {
+  nextTick(async () => {
+    if (props.showOriginal) await ensureOriginalBitmap()
+    rebuildAndDraw()
+    zoomFit()
+  })
+  window.addEventListener('resize', resizeHandler)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', resizeHandler)
+  if (flashTimer.value) clearTimeout(flashTimer.value)
+  for (const anim of activeAnims.values()) {
+    cancelAnimationFrame(anim.frame)
+  }
+  activeAnims.clear()
+  if (fillWorker) {
+    fillWorker.terminate()
+    fillWorker = null
+  }
+})
+
+watch(() => props.puzzle.progress, () => { rebuildAndDraw() }, { deep: true })
+watch(() => store.selectedColorIndex, () => { rebuildAndDraw() })
+</script>
+
+<template>
+  <div ref="containerRef" class="canvas-container">
+    <canvas
+      ref="canvasRef"
+      class="puzzle-canvas"
+      @click="onClick"
+      @mousedown="onMouseDown"
+      @mousemove="onMouseMove"
+      @mouseup="onMouseUp"
+      @mouseleave="onMouseUp"
+      @wheel="onWheel"
+      @touchstart.passive="onTouchStart"
+      @touchmove="onTouchMove"
+      @touchend="onTouchEnd"
+    />
+  </div>
+</template>
+
+<style scoped>
+.canvas-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 400px;
+  background: var(--bg-inset);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.puzzle-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='12' cy='12' r='8' fill='none' stroke='%23334155' stroke-width='1.5' opacity='0.7'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='%23334155'/%3E%3C/svg%3E") 12 12, crosshair;
+}
+</style>
