@@ -1,6 +1,17 @@
+/**
+ * Color Quantization — K-Means clustering in CIELAB color space.
+ *
+ * Reduces an image to K representative colors by:
+ * 1. Converting all pixels from RGB to perceptually uniform CIELAB space
+ * 2. Running K-Means++ (smart initialization) to find K cluster centroids
+ * 3. Assigning each pixel to its nearest centroid
+ * 4. Removing unused clusters and re-indexing
+ *
+ * The result is a compact palette and a per-pixel index grid.
+ */
 import type { RGBColor, LabColor, ProgressCallback } from './types'
 
-// ---- Color space conversion ----
+// ---- Color space conversion (RGB ↔ CIELAB via XYZ with D65 illuminant) ----
 
 export function rgbToLab(c: RGBColor): LabColor {
   // RGB -> linear sRGB
@@ -75,7 +86,10 @@ function labDistSq(a: LabColor, b: LabColor): number {
   return dL * dL + da * da + db * db
 }
 
-// ---- K-Means++ in Lab color space ----
+// ---- K-Means++ initialization ----
+// Selects initial centroids that are well-spread, leading to faster convergence
+// than random initialization. Each successive centroid is chosen with probability
+// proportional to its squared distance from the nearest existing centroid.
 
 function initKMeansPP(pixels: LabColor[], k: number): LabColor[] {
   const centroids: LabColor[] = []
@@ -113,6 +127,14 @@ function yieldToMain(): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, 0))
 }
 
+/**
+ * Main quantization entry point.
+ * Converts pixels to Lab, runs K-Means clustering, and returns:
+ * - palette: K (or fewer) representative RGB colors
+ * - indexGrid: flat array mapping each pixel to its palette index
+ *
+ * Yields to the main thread periodically to keep the UI responsive.
+ */
 export async function quantize(
   imageData: ImageData,
   k: number,

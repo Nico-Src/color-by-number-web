@@ -47,6 +47,15 @@ const progressPercent = computed(() => {
 
       <div class="toolbar-group">
         <Button
+          text rounded size="small"
+          :severity="store.cheatMode ? 'warn' : 'secondary'"
+          :class="{ 'cheat-active': store.cheatMode }"
+          @click="store.toggleCheatMode()"
+          v-tooltip.bottom="store.cheatMode ? 'Disable cheat brush' : 'Cheat brush'"
+        >
+          <template #icon><Icon name="mdi:auto-fix" size="1.2rem" /></template>
+        </Button>
+        <Button
           v-if="isComplete"
           text rounded size="small"
           :severity="showOriginal ? 'primary' : 'secondary'"
@@ -94,5 +103,9 @@ const progressPercent = computed(() => {
 .toolbar-progress {
   flex: 1;
   max-width: 200px;
+}
+.cheat-active {
+  background: rgba(234, 179, 8, 0.15) !important;
+  color: #eab308 !important;
 }
 </style>

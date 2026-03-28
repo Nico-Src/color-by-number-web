@@ -1,3 +1,17 @@
+/**
+ * Image-to-puzzle conversion pipeline orchestrator.
+ *
+ * Runs the full 7-step conversion entirely client-side:
+ *   1. Load & downscale the uploaded image
+ *   2. Optional Gaussian blur to reduce noise
+ *   3. K-Means color quantization in CIELAB space
+ *   4. Connected-component region detection + small region merging
+ *   5. Marching-squares contour extraction + Douglas-Peucker simplification
+ *   6. Pole-of-inaccessibility label placement per region
+ *   7. Build the final PuzzleData structure for persistence & gameplay
+ *
+ * Reports progress stage/percentage via callback for the UI progress bar.
+ */
 import { nanoid } from 'nanoid'
 import type { ConversionConfig, PuzzleData, Region, ProgressCallback } from '../lib/types'
 import { loadImageToData, downscale, gaussianBlur, createThumbnail } from '../lib/imageUtils'

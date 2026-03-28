@@ -1,3 +1,15 @@
+/**
+ * Region Detection — Connected-component labeling via union-find.
+ *
+ * Takes the quantized pixel grid and groups contiguous same-color pixels
+ * into discrete regions using a two-pass algorithm:
+ * 1. Union phase: merge adjacent pixels with the same color index (4-connectivity)
+ * 2. Label phase: collect per-region metadata (bbox, centroid, pixel count)
+ * 3. Merge phase: absorb tiny regions into their largest neighbor
+ *
+ * Small region merging reduces visual clutter and avoids impractical
+ * single-pixel puzzle regions.
+ */
 import type { ProgressCallback } from './types'
 
 /** Union-Find (disjoint-set) with path compression and union by rank */
@@ -164,6 +176,11 @@ export async function regionize(
   return { regionGrid, regions }
 }
 
+/**
+ * Merge regions smaller than minSize into their neighbor with the longest
+ * shared border. Repeats until no region is below the threshold (max 50 passes
+ * to prevent infinite loops on degenerate inputs).
+ */
 async function mergeSmallRegions(
   regionGrid: Uint32Array,
   regions: RegionInfo[],

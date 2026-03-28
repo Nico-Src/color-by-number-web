@@ -1,3 +1,11 @@
+/**
+ * Pinia store for the active puzzle session.
+ *
+ * Holds the loaded puzzle data, selected color, viewport transform,
+ * and processing state during image conversion. The store acts as the
+ * single source of truth that the canvas, palette, and toolbar all
+ * read from and write to.
+ */
 import { defineStore } from 'pinia'
 import type { PuzzleData } from '../lib/types'
 
@@ -10,6 +18,7 @@ export const usePuzzleStore = defineStore('puzzle', {
     isProcessing: false,
     processingStage: '',
     processingProgress: 0,
+    cheatMode: false,
   }),
 
   getters: {
@@ -39,12 +48,22 @@ export const usePuzzleStore = defineStore('puzzle', {
       this.selectedColorIndex = null
       this.zoom = 1
       this.panOffset = { x: 0, y: 0 }
+      this.cheatMode = false
+    },
+
+    toggleCheatMode() {
+      this.cheatMode = !this.cheatMode
     },
 
     selectColor(index: number | null) {
       this.selectedColorIndex = index
     },
 
+    /**
+     * Attempt to fill a region with the currently selected color.
+     * Returns true if the color was correct (region filled), false otherwise.
+     * Creates a new Uint8Array to trigger Vue reactivity on progress change.
+     */
     fillRegion(regionIndex: number): boolean {
       if (!this.currentPuzzle || this.selectedColorIndex === null) return false
 
@@ -67,10 +86,40 @@ export const usePuzzleStore = defineStore('puzzle', {
       this.processingProgress = progress
     },
 
+    /**
+     * Fill all unfilled regions whose label falls within the given radius
+     * (in puzzle-pixel coordinates). Bypasses color matching — this is the cheat tool.
+     * Returns the list of region indices that were filled.
+     */
+    cheatFillRegions(px: number, py: number, radius: number): number[] {
+      if (!this.currentPuzzle) return []
+      const filled: number[] = []
+      const r2 = radius * radius
+      const newProgress = new Uint8Array(this.currentPuzzle.progress)
+
+      for (let i = 0; i < this.currentPuzzle.regions.length; i++) {
+        if (newProgress[i] === 1) continue
+        const region = this.currentPuzzle.regions[i]
+        if (!region) continue
+        const dx = region.labelPos.x - px
+        const dy = region.labelPos.y - py
+        if (dx * dx + dy * dy <= r2) {
+          newProgress[i] = 1
+          filled.push(i)
+        }
+      }
+
+      if (filled.length > 0) {
+        this.currentPuzzle.progress = newProgress
+      }
+      return filled
+    },
+
     resetPuzzle() {
       if (!this.currentPuzzle) return
       this.currentPuzzle.progress = new Uint8Array(this.currentPuzzle.regions.length)
       this.currentPuzzle.completed = false
+      this.cheatMode = false
     },
   },
 })

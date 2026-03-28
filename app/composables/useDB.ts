@@ -1,3 +1,11 @@
+/**
+ * IndexedDB persistence layer using the `idb` promise wrapper.
+ *
+ * Stores complete PuzzleData objects (palette, regions, progress, original
+ * image blob) in a single "puzzles" object store keyed by nanoid.
+ * All operations are async and wrapped in the composable pattern so
+ * components can destructure only the methods they need.
+ */
 import { openDB, type IDBPDatabase } from 'idb'
 import type { PuzzleData } from '../lib/types'
 
